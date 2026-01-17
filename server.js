@@ -1,3 +1,4 @@
+import cors from "cors";
 import express from "express";
 import dotenv from "dotenv";
 import OpenAI from "openai";
@@ -5,6 +6,18 @@ import OpenAI from "openai";
 dotenv.config();
 
 const app = express();
+app.use(cors({
+  origin: [
+    "https://app.funildeconceito.com",
+    "http://app.funildeconceito.com"
+  ],
+  methods: ["GET","POST","OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: false
+}));
+
+app.options("*", cors());
+
 app.use(express.json({ limit: "1mb" }));
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -306,3 +319,4 @@ app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 const port = process.env.PORT || 3333;
 app.listen(port, () => console.log("Server rodando na porta", port));
+
