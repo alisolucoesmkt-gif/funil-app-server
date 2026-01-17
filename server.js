@@ -260,7 +260,8 @@ REGRAS:
 });
 
 // Endpoint: gerar só títulos
-app.post("/api/titles_only", async (req, res) => {
+app.post("/api/titles_only", async (req, res) =>
+  app.post("/api/thumbnail_text"...{
   try {
     const { tema, publico, keyword, channel_level, video_type, competition_level } = req.body || {};
     if (!tema || !publico || !keyword) {
@@ -320,6 +321,7 @@ app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 const port = process.env.PORT || 3333;
 app.listen(port, () => console.log("Server rodando na porta", port));
+
 
 
 
