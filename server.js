@@ -6,19 +6,18 @@ import cors from "cors";
 dotenv.config();
 
 const app = express();
-app.use(cors({
-  origin: [
-    "https://app.funildeconceito.com",
-    "http://app.funildeconceito.com"
-  ],
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: false
-}));
+
+// CORS (permite o frontend acessar o backend)
+app.use(
+  cors({
+    origin: ["https://app.funildeconceito.com", "http://app.funildeconceito.com"],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: false,
+  })
+);
 
 app.options("*", cors());
-
-
 app.use(express.json({ limit: "1mb" }));
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -30,7 +29,7 @@ Você é um motor profissional de criação de conteúdo para YouTube especializ
 Crie títulos, roteiro para teleprompter, descrição e tags em PT-BR.
 Use linguagem natural, simples e direta. Nada robótico.
 Não invente dados específicos como se fossem fatos.
-`;
+`.trim();
 }
 
 // Função de prompt para 1 vídeo ou funil 3 vídeos
@@ -50,7 +49,7 @@ REGRAS DE VENDA (CTAs)
   3) No final (mais direto)
 - Na descrição, coloque o link da oferta nas primeiras linhas, com CTA claro.
 - Não prometa resultados garantidos.
-`;
+`.trim();
 
   const base = `
 DADOS DO USUÁRIO
@@ -69,7 +68,7 @@ REGRA CRÍTICA DE SEO
 - A descrição também deve repetir a keyword o máximo possível com naturalidade.
 
 ${offerBlock}
-`;
+`.trim();
 
   if (mode === "funnel3") {
     return `
@@ -146,7 +145,7 @@ Responda APENAS em JSON válido:
     }
   ]
 }
-`;
+`.trim();
   }
 
   return `
@@ -170,10 +169,12 @@ FORMATO DE SAÍDA (JSON):
   "description": "",
   "tags": []
 }
-`;
+`.trim();
 }
 
-// Endpoint principal
+// -------------------------
+// ENDPOINT PRINCIPAL
+// -------------------------
 app.post("/api/generate", async (req, res) => {
   try {
     const { tema, publico, keyword, mode, offer_name, offer_link, offer_cta } = req.body || {};
@@ -201,11 +202,16 @@ app.post("/api/generate", async (req, res) => {
 
     return res.json(data);
   } catch (err) {
-    return res.status(500).json({ error: "Falha ao gerar conteúdo.", detail: err?.message || String(err) });
+    return res.status(500).json({
+      error: "Falha ao gerar conteúdo.",
+      detail: err?.message || String(err),
+    });
   }
 });
 
-// Endpoint: sugestões de keyword com IA
+// -------------------------
+// KEYWORD SUGGEST (IA)
+// -------------------------
 app.post("/api/keyword_suggest", async (req, res) => {
   try {
     const { keyword, tema, publico, channel_level, video_type, competition_level } = req.body || {};
@@ -229,7 +235,7 @@ REGRAS:
 - Evite promessas exageradas.
 - Responda SOMENTE em JSON:
 { "suggestions": ["...", "..."] }
-`;
+`.trim();
 
     const response = await client.responses.create({
       model: "gpt-5.2",
@@ -255,13 +261,17 @@ REGRAS:
 
     return res.json({ suggestions: data.suggestions.slice(0, 10) });
   } catch (err) {
-    return res.status(500).json({ error: "Falha ao gerar sugestões.", detail: err?.message || String(err) });
+    return res.status(500).json({
+      error: "Falha ao gerar sugestões.",
+      detail: err?.message || String(err),
+    });
   }
 });
 
-// Endpoint: gerar só títulos
-app.post("/api/titles_only", async (req, res) =>
-  app.post("/api/thumbnail_text"...{
+// -------------------------
+// TITLES ONLY
+// -------------------------
+app.post("/api/titles_only", async (req, res) => {
   try {
     const { tema, publico, keyword, channel_level, video_type, competition_level } = req.body || {};
     if (!tema || !publico || !keyword) {
@@ -286,7 +296,7 @@ REGRAS:
 - Marque 1 como recommended.
 - Responda SOMENTE em JSON:
 { "titles": [ { "text": "...", "recommended": false } ] }
-`;
+`.trim();
 
     const response = await client.responses.create({
       model: "gpt-5.2",
@@ -312,16 +322,101 @@ REGRAS:
 
     return res.json({ titles: data.titles.slice(0, 10) });
   } catch (err) {
-    return res.status(500).json({ error: "Falha ao gerar títulos.", detail: err?.message || String(err) });
+    return res.status(500).json({
+      error: "Falha ao gerar títulos.",
+      detail: err?.message || String(err),
+    });
   }
 });
 
-// Health check (pra testar no navegador)
+// -------------------------
+// THUMBNAIL TEXT (NOVO)
+// -------------------------
+app.post("/api/thumbnail_text", async (req, res) => {
+  try {
+    const { tema, publico, keyword } = req.body || {};
+    if (!tema || !publico || !keyword) {
+      return res.status(400).json({ error: "Campos obrigatórios: tema, publico, keyword" });
+    }
+
+    const prompt = `
+Você é especialista em copy curta para thumbnails de YouTube.
+
+Gere 9 textos curtos para thumbnail, em PT-BR, seguindo estas regras:
+- Cada texto deve ter de 2 a 4 palavras
+- Sem pontuação exagerada (evitar !!! ???)
+- Sem promessas absurdas
+- Textos diretamente ligados ao tema e à keyword
+- Linguagem simples, forte e natural
+
+DADOS:
+- Tema: "${tema}"
+- Público: "${publico}"
+- Keyword: "${keyword}"
+
+Responda SOMENTE em JSON válido no formato:
+{
+  "curiosidade": ["", "", ""],
+  "beneficio": ["", "", ""],
+  "anti_erro": ["", "", ""]
+}
+`.trim();
+
+    const response = await client.responses.create({
+      model: "gpt-5.2",
+      instructions: buildSystemPrompt(),
+      input: prompt,
+    });
+
+    const text = response.output_text;
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
+      if (start >= 0 && end > start) data = JSON.parse(text.slice(start, end + 1));
+      else return res.status(500).json({ error: "Resposta não veio em JSON válido.", raw: text });
+    }
+
+    const ok =
+      data &&
+      Array.isArray(data.curiosidade) &&
+      Array.isArray(data.beneficio) &&
+      Array.isArray(data.anti_erro);
+
+    if (!ok) {
+      return res.status(500).json({ error: "Formato inválido retornado pela IA.", raw: data });
+    }
+
+    const normalize = (arr) =>
+      (arr || [])
+        .slice(0, 3)
+        .map((s) => {
+          let t = String(s || "").trim().replace(/\s+/g, " ");
+          t = t.replace(/[!?]{2,}/g, "");
+          const parts = t.split(" ").filter(Boolean).slice(0, 4);
+          return parts.join(" ");
+        });
+
+    return res.json({
+      curiosidade: normalize(data.curiosidade),
+      beneficio: normalize(data.beneficio),
+      anti_erro: normalize(data.anti_erro),
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: "Falha ao gerar textos de thumbnail.",
+      detail: err?.message || String(err),
+    });
+  }
+});
+
+// -------------------------
+// HEALTH CHECK
+// -------------------------
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 const port = process.env.PORT || 3333;
 app.listen(port, () => console.log("Server rodando na porta", port));
-
-
-
-
